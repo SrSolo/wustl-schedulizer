@@ -1,17 +1,21 @@
-const fileInput = document.getElementById("file-input");
-const fileLabel = document.getElementById("file-label");
-const fileNameDisplay = document.getElementById("file-name");
+document.getElementById("uploadForm").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const pdfFile = document.getElementById("pdfFile").files[0];
+    if (!pdfFile) return;
 
-fileInput.addEventListener("change", () => {
-    const file = fileInput.files[0];
-    if (file) {
-        const fileName = file.name;
-        fileNameDisplay.textContent = `Selected file: ${fileName}`;
+    const formData = new FormData();
+    formData.append("pdfFile", pdfFile);
+
+    const response = await fetch("/api/uploadPDF", {
+        method: "POST",
+        body: formData,
+    });
+
+    if (response.ok) {
+        const data = await response.json();
+        const downloadLink = document.getElementById("downloadLink");
+        downloadLink.innerHTML = `<a href="${data.link}" download>Download iCal File</a>`;
     } else {
-        fileNameDisplay.textContent = "";
+        alert("An error occurred during PDF processing.");
     }
-});
-
-fileLabel.addEventListener("click", () => {
-    fileInput.click();
 });

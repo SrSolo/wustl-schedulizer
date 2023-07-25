@@ -1,46 +1,39 @@
-const fs = require('fs');
-const path = require('path');
-const { parse } = require('querystring');
+const { PDFDocument, rgb } = require("pdf-lib");
+const pdfTextExtract = require("pdf-text-extract");
+const ical = require("ical-generator");
 
-module.exports = (req, res) => {
-  if (req.method === 'POST') {
-    let data = '';
-
-    req.on('data', chunk => {
-      data += chunk;
-    });
-
-    req.on('end', () => {
-      const parsedData = parse(data);
-
-      // Extract the file data from the request
-      const fileData = parsedData.file;
-
-      if (!fileData) {
-        return res.status(400).json({ error: 'No file selected' });
-      }
-
-      // Decode the base64 file data
-      const decodedData = Buffer.from(fileData, 'base64');
-
-      // Save the file in the 'uploads' folder
-      const fileName = 'uploaded_file.pdf'; // Set the desired filename
-      const filePath = path.join(__dirname, 'uploads', fileName);
-
-      fs.writeFile(filePath, decodedData, (err) => {
-        if (err) {
-          console.error(err);
-          return res.status(500).json({ error: 'Error occurred during file upload' });
+module.exports = async (req, res) => {
+    try {
+        const pdfFile = req.files?.pdfFile;
+        if (!pdfFile || !pdfFile.mimetype.includes("pdf")) {
+            return res.status(400).json({ error: "Invalid PDF file." });
         }
 
-        // Trigger the Python script here or call an external API endpoint with the file path
-        // You can use 'child_process' to execute the Python script here if you have Python installed on Vercel
+        // PDF processing and text extraction
+        const pdfBuffer = pdfFile.data;
+        const pdfDoc = await PDFDocument.load(pdfBuffer);
+        const text = await pdfTextExtract.extract(pdfBuffer);
 
-        return res.status(200).json({ message: 'File uploaded successfully' });
-      });
-    });
-  } else {
-    res.setHeader('Allow', ['POST']);
-    res.status(405).end('Method Not Allowed');
-  }
+        // Data extraction (customize based on your PDF structure)
+        const eventDetails = {
+            title: "Sample Event",
+            description: text.join("\n"),
+            start: new Date(),
+            end: new Date(),
+            location: "Sample Location",
+        };
+
+        // iCal file generation
+        const cal = ical({ domain: "your-domain.com" });
+        cal.createEvent(eventDetails);
+
+        const iCalContent = cal.toString();
+        const iCalBuffer = Buffer.from(iCalContent);
+
+        // Respond with the link to download iCal file (upload to cloud storage first in real-world scenario)
+        res.status(200).json({ link: "data:text/calendar;charset=utf-8," + encodeURIComponent(iCalContent) });
+    } catch (error) {
+        console.error("Error during PDF processing:", error);
+        res.status(500).json({ error: "An error occurred during PDF processing." });
+    }
 };
